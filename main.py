@@ -1,6 +1,31 @@
 from random import randint
 
-def gcd(a: int, b: int):
+def genPrime() -> int:
+  prime = 0
+  notPrimes = []
+  while not isPrime(prime):
+    notPrimes.append(prime)
+    while prime in notPrimes:
+      prime = randint(1e6, 1e7-1)
+
+  return prime
+
+def isPrime(n: int) -> bool:
+  # miller-rabin
+  # https://www.youtube.com/watch?v=qdylJqXCDGs&ab_channel=Theoretically
+  k = 0
+  while isinstance((n - 1) / (2 ** k), int):
+    k += 1
+  m = (n - 1) / (2 ** k)
+  a = randint(2, n - 2)
+
+  a_, b = a, 0
+  for _ in range(0, m - 1): # b = (a ** m) % n
+    b = (a_ * a) % n
+
+  return False
+
+def gcd(a: int, b: int) -> int:
   if a == 0:
     return b
   return gcd(b % a, a)
