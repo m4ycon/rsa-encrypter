@@ -1,4 +1,5 @@
 from random import randint
+from math import gcd
 
 
 def gen_prime() -> int:
@@ -43,32 +44,23 @@ def is_prime(n: int) -> bool:
   return True
 
 
-def gcd(a: int, b: int) -> int:
-  if a == 0:
-    return b
-  return gcd(b % a, a)
-
-
 def generate_key(p: int, q: int):
   # https://www.youtube.com/watch?v=oOcTVTpUsPQ&ab_channel=EddieWoo
   n = p * q
   phi = (p - 1) * (q - 1)
 
-  e = 0
-  for i in range(2, phi):
-    if gcd(i, phi) == 1:
-      e = i
-      break
+  e, d = 2, 2
+  while d * e % phi != 1:
+    e = randint(2, phi - 1)
+    if gcd(e, phi) != 1:
+      continue
+    try:
+      d = pow(e, -1, phi) # modular inverse, extended euclidean algorithm
+    except ValueError:
+      continue
 
-  # d * e % phi == 1
-  d = 0
-  for i in range(2, phi):
-    if (i * e) % phi == 1:
-      d = i
-      break
+  d += phi * randint(1e2, 1e6) # add some random number to d, still attending to be modular inverse
 
-  d += phi * randint(1e4, 1e6)
-  
   return { 'public': (e, n), 'private': (d, n) }
 
 
@@ -81,8 +73,8 @@ def decrypt():
 
 
 def main():
-  # res = generate_key(2, 7)
-  prime = gen_prime()
-  print(f'-> {prime}')
+  p1, p2 = gen_prime(), gen_prime()
+  res = generate_key(p1, p2)
+  print(res)
 
 main()
