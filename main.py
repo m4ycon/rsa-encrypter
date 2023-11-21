@@ -1,25 +1,11 @@
 from random import randint
 
 
-def exp_mod(a: int, b: int, n: int) -> int:
-  # (a ^ b) % n with fast exponentiation
-  res = 1
-  while b > 0:
-    if b % 2 == 1:
-      res = (res * a) % n
-    a = (a * a) % n
-    b = b // 2
-  return res
-
-
 def gen_prime() -> int:
-  prime = randint(2e16, 2e17-1)
-  not_primes = []
+  lower_bound, upper_bound = pow(2, 1024), pow(2, 1025) - 1
+  prime = randint(lower_bound, upper_bound)
   while not is_prime(prime):
-    not_primes.append(prime)
-
-    while prime in not_primes:
-      prime = randint(2e16, 2e17-1)
+    prime = randint(lower_bound, upper_bound)
 
   return prime
 
@@ -27,16 +13,34 @@ def gen_prime() -> int:
 def is_prime(n: int) -> bool:
   # miller-rabin
   # https://www.youtube.com/watch?v=qdylJqXCDGs&ab_channel=Theoretically
-  k = 1
-  while (n - 1) / (2 ** k) == int((n - 1) / (2 ** k)):
-    k += 1
-  k -= 1
-  m = int((n - 1) / (2 ** k))
-  a = randint(2, n - 2)
 
-  b = exp_mod(a, m, n)
-  return b == 1 or b == n - 1
-  # TODO: check next bn's to confirm prime
+  if n == 2 or n == 3:
+    return True
+  if n <= 1 or n % 2 == 0:
+    return False
+
+  k, m = 0, n - 1
+  while m % 2 == 0:
+    k += 1
+    m //= 2
+
+  for _ in range(40):
+    a = randint(2, n - 2)
+    b = pow(a, m, n)
+
+    if b == 1 or b == n - 1: # inconclusive
+      continue
+
+    is_probably_prime = False
+    for _ in range(k - 1):
+      b = pow(b, 2, n)
+      if b == n - 1:
+        is_probably_prime = True
+        break
+    if not is_probably_prime:
+      return False
+  
+  return True
 
 
 def gcd(a: int, b: int) -> int:
