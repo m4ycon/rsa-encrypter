@@ -1,7 +1,8 @@
 from random import randint
 from math import gcd
 from typing import Dict
-from hashlib import sha1
+from hashlib import sha1, sha3_256
+from base64 import b64encode, b64decode
 import secrets
 
 class Key():
@@ -102,35 +103,26 @@ def mgf1(seed : bytes, mask_len : int, hash_function=sha1):
 
     return masks[:mask_len]
 
-def encode_oaep(plaintext: str, n : int, hash_function=sha1) -> bytes:
+def encode_oaep(plaintext: str, n : int, hash_function=sha1) -> str:
   lhash = hash_function(b'').digest() # bytes da label ""
   hLen = hash_function().digest_size # tamanho do retorno de sha1
-  # print(f"Hash len: {hLen}")
   k = (n.bit_length() + 7) // 8 # número de bytes de n (módulo)
-  # print(f"k: {k}")
   mlen = len(plaintext) # tamanho da mensagem em bytes
-  # print(f"tamanho da mensagem: {mlen}")
   ps = b'\x00' * (k - mlen - 2 * hLen - 2)
-  # print(f"Padding string: {ps}")
   db = lhash + ps + b'\x01' + plaintext.encode('utf-8') # tamanho k - hLen - 1
-  # print(f"Data block: {db}")
   seed = secrets.token_bytes(hLen)
-  # print(f"Seed: {seed}")
   dbMask = mgf1(seed, k - hLen - 1)
-  # print(f"Data block mask: {dbMask}")
   maskedDB = xor(db, dbMask)
-  # print(f"Data block masked: {maskedDB}")
   seedMask = mgf1(maskedDB, hLen)
-  # print(f"Seed mask: {seedMask}")
   maskedSeed = xor(seed, seedMask)
-  # print(f"Masked seed: {maskedSeed}")
   encoded = b'\x00' + maskedSeed + maskedDB
-  return encoded
+  return b64encode(encoded).decode('utf-8')
 
-def decode_oaep(decode : bytes, n : int, hash_function=sha1) -> str :
+def decode_oaep(ciphertext : str, n : int, hash_function=sha1) -> str :
+  ciphertextbytes = b64decode(ciphertext)
   hLen = hash_function().digest_size # tamanho do retorno da função de hash
   k = (n.bit_length() + 7) // 8 # número de bytes de p * q
-  maskedSeed, maskedDB = decode[1:hLen+1], decode[hLen+1:]
+  maskedSeed, maskedDB = ciphertextbytes[1:hLen+1], ciphertextbytes[hLen+1:]
   seedMask = mgf1(maskedDB, hLen)
   seed = xor(maskedSeed, seedMask)
   dbMask = mgf1(seed, k - hLen - 1)
@@ -138,29 +130,46 @@ def decode_oaep(decode : bytes, n : int, hash_function=sha1) -> str :
   decoded = db.split(b'\x01', 1)[1]
   return decoded.decode('utf8')
 
-def rsa(input: bytes, key: Key) -> bytes:
+def rsa(input: str, key: Key) -> str:
+  inputbytes = b64decode(input)
   k = (key.n.bit_length() + 7) // 8
-  int_input = int.from_bytes(input, "big")
+  int_input = int.from_bytes(inputbytes, "big")
   int_output = pow(int_input, key.k, key.n)
-  return int_output.to_bytes(k, 'big')
+  outputbytes = int_output.to_bytes(k, 'big')
+  return b64encode(outputbytes).decode('utf-8')
 
 def cipher(plaintext : str, key: Key) -> bytes:
   encoded = encode_oaep(plaintext, key.n)
   return rsa(encoded, key)
 
-def decipher(ciphertext: bytes, key: Key) -> bytes:
+def decipher(ciphertext: str, key: Key) -> str:
   decode = rsa(ciphertext, key)
   return decode_oaep(decode, key.n)
+
+def sign(plaintext : str, key: Key) -> str:
+  hash = sha3_256(plaintext.encode('utf-8')).digest()
+  return rsa(b64encode(hash).decode('utf-8'), key)
+
+def verify(ciphertext : str, key: Key, signature: str) -> bool:
+  msg = decipher(ciphertext, key)
+  msghash = sha3_256(msg.encode('utf-8')).digest()
+  signaturebytes = b64decode(rsa(signature, key))[-32:] # 32 é o tamanho em bytes do hash sha3_256
+  print(f'hash: {msghash}')
+  print(f'signature: {signaturebytes}')
+  return signaturebytes == msghash
 
 def main():
   keys_pair = generate_keys()
   # print(keys_pair['private'])
   # print(keys_pair['public'])
 
-  plaintext = 'rango brabo'
+  plaintext = 'rango brabo demais'
   ciphertext = cipher(plaintext, keys_pair['public'])
   msg = decipher(ciphertext, keys_pair['private'])
   print(f'cipher text: {ciphertext}')
   print(f'msg: {msg}')
+  signature = sign(plaintext, keys_pair['public'])
+  verified = verify(ciphertext, keys_pair['private'], signature)
+  print(f'Verification: {verified}')
 
 main()
