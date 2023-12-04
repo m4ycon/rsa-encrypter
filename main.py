@@ -14,9 +14,9 @@ class Key():
     self.n = n
 
   def read_key(self, key: str):
-    key = key.strip().split('.')
-    self.k = int(key[0], 16)
-    self.n = int(key[1], 16)
+    k, n = key.strip().split('.')
+    self.k = int(k, 16)
+    self.n = int(n, 16)
 
   def __str__(self):
     k_hex = hex(self.k)[2:]
@@ -210,8 +210,8 @@ def main():
   else:
     public_key = input('Chave pública (e.n em hexadecimal): ')
     private_key = input('Chave privada (d.n em hexadecimal): ')
-    keys_pair['public'] = keys_pair['public'].read_key(public_key)
-    keys_pair['private'] = keys_pair['private'].read_key(private_key)
+    keys_pair['public'].read_key(public_key)
+    keys_pair['private'].read_key(private_key)
     print(f'Chave pública gerada: {keys_pair["public"]}')
     print(f'Chave privada gerada: {keys_pair["private"]}')
 
