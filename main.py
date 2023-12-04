@@ -14,7 +14,10 @@ class Key():
     self.n = n
 
   def __str__(self):
-    return f'({self.k}, {self.n})'
+    k_hex = hex(self.k)[2:]
+    n_hex = hex(self.n)[2:]
+
+    return f'({k_hex}, {n_hex})'
 
 
 TKeysDict = Dict[str, Key]
@@ -138,7 +141,7 @@ def rsa(input: str, key: Key) -> str:
   outputbytes = int_output.to_bytes(k, 'big')
   return b64encode(outputbytes).decode('utf-8')
 
-def cipher(plaintext : str, key: Key) -> bytes:
+def cipher(plaintext : str, key: Key) -> str:
   encoded = encode_oaep(plaintext, key.n)
   return rsa(encoded, key)
 
@@ -158,18 +161,70 @@ def verify(ciphertext : str, key: Key, signature: str) -> bool:
   print(f'signature: {signaturebytes}')
   return signaturebytes == msghash
 
+#######################
+
+def input_crypt(keys_pair: TKeysDict):
+  plaintext = input('Mensagem: ')
+  ciphertext = cipher(plaintext, keys_pair['public'])
+  print(f'Texto cifrado: {ciphertext}')
+  return
+
+def input_decrypt(keys_pair: TKeysDict):
+  ciphertext = input('Texto cifrado: ')
+  plaintext = decipher(ciphertext, keys_pair['private'])
+  print(f'Mensagem: {plaintext}')
+  return
+
+def input_signature(keys_pair: TKeysDict):
+  plaintext = input('Mensagem: ')
+  signature = sign(plaintext, keys_pair['public'])
+  print(f'Assinatura: {signature}')
+  return
+
+def input_check_signature(keys_pair: TKeysDict):
+  ciphertext = input('Texto cifrado: ')
+  signature = input('Assinatura: ')
+  verified = verify(ciphertext, keys_pair['private'], signature)
+  print(f'Verificação: {verified}')
+  return
+
+
 def main():
   keys_pair = generate_keys()
-  # print(keys_pair['private'])
-  # print(keys_pair['public'])
+  print(f'Chave pública gerada: {keys_pair["public"]}')
+  print(f'Chave privada gerada: {keys_pair["private"]}')
 
-  plaintext = 'rango brabo demais'
-  ciphertext = cipher(plaintext, keys_pair['public'])
-  msg = decipher(ciphertext, keys_pair['private'])
-  print(f'cipher text: {ciphertext}')
-  print(f'msg: {msg}')
-  signature = sign(plaintext, keys_pair['public'])
-  verified = verify(ciphertext, keys_pair['private'], signature)
-  print(f'Verification: {verified}')
+  options = [
+    'Criptografar',
+    'Descriptografar',
+    'Assinar',
+    'Verificar assinatura',
+    'Sair'
+  ]
+  switcher = {
+    options.index('Criptografar')+1: input_crypt,
+    options.index('Descriptografar')+1: input_decrypt,
+    options.index('Assinar')+1: input_signature,
+    options.index('Verificar assinatura')+1: input_check_signature,
+    options.index('Sair')+1: lambda _: exit(0)
+  }
+
+  usr_input = 1
+  while options[usr_input-1] != 'Sair':
+    print(f'{" RSA ":-^30}')
+    for i in range(len(options)):
+      print(f'{i+1}. {options[i]}')
+
+    usr_input = input('Opção: ')
+    try:
+      usr_input = int(usr_input)
+      if not (0 < int(usr_input) <= len(options)):
+        raise ValueError
+    except ValueError:
+      usr_input = 1
+      print('Opção inválida!')
+      continue
+
+    switcher[usr_input](keys_pair)
 
 main()
