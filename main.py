@@ -13,11 +13,16 @@ class Key():
     self.k = key
     self.n = n
 
+  def read_key(self, key: str):
+    key = key.strip().split('.')
+    self.k = int(key[0], 16)
+    self.n = int(key[1], 16)
+
   def __str__(self):
     k_hex = hex(self.k)[2:]
     n_hex = hex(self.n)[2:]
 
-    return f'({k_hex}, {n_hex})'
+    return f'{k_hex}.{n_hex}'
 
 
 TKeysDict = Dict[str, Key]
@@ -107,12 +112,17 @@ def mgf1(seed : bytes, mask_len : int, hash_function=sha1):
     return masks[:mask_len]
 
 def encode_oaep(plaintext: str, n : int, hash_function=sha1) -> str:
+  message = plaintext.encode()
   lhash = hash_function(b'').digest() # bytes da label ""
   hLen = hash_function().digest_size # tamanho do retorno de sha1
   k = (n.bit_length() + 7) // 8 # número de bytes de n (módulo)
-  mlen = len(plaintext) # tamanho da mensagem em bytes
+  mlen = len(message) # tamanho da mensagem em bytes
+
+  if mlen > k - 2 * hLen - 2:
+    raise ValueError("Messagem muito longa para ser codificada")
+
   ps = b'\x00' * (k - mlen - 2 * hLen - 2)
-  db = lhash + ps + b'\x01' + plaintext.encode('utf-8') # tamanho k - hLen - 1
+  db = lhash + ps + b'\x01' + message # tamanho k - hLen - 1
   seed = secrets.token_bytes(hLen)
   dbMask = mgf1(seed, k - hLen - 1)
   maskedDB = xor(db, dbMask)
@@ -131,7 +141,7 @@ def decode_oaep(ciphertext : str, n : int, hash_function=sha1) -> str :
   dbMask = mgf1(seed, k - hLen - 1)
   db =xor(maskedDB, dbMask)
   decoded = db.split(b'\x01', 1)[1]
-  return decoded.decode('utf8')
+  return decoded.decode('utf-8')
 
 def rsa(input: str, key: Key) -> str:
   inputbytes = b64decode(input)
@@ -190,9 +200,21 @@ def input_check_signature(keys_pair: TKeysDict):
 
 
 def main():
-  keys_pair = generate_keys()
-  print(f'Chave pública gerada: {keys_pair["public"]}')
-  print(f'Chave privada gerada: {keys_pair["private"]}')
+  user_pref = input('Deseja gerar novas chaves e usá-las nas operações seguintes? (s/n) ')
+  
+  keys_pair = { 'public': Key(0, 0), 'private': Key(0, 0) }
+  if user_pref.lower() == 's':
+    keys_pair = generate_keys()
+    print(f'Chave pública gerada: {keys_pair["public"]}')
+    print(f'Chave privada gerada: {keys_pair["private"]}')
+  else:
+    public_key = input('Chave pública (e.n em hexadecimal): ')
+    private_key = input('Chave privada (d.n em hexadecimal): ')
+    keys_pair['public'] = keys_pair['public'].read_key(public_key)
+    keys_pair['private'] = keys_pair['private'].read_key(private_key)
+    print(f'Chave pública gerada: {keys_pair["public"]}')
+    print(f'Chave privada gerada: {keys_pair["private"]}')
+
 
   options = [
     'Criptografar',
