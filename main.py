@@ -117,10 +117,6 @@ def encode_oaep(plaintext: str, n : int, hash_function=sha1) -> str:
   hLen = hash_function().digest_size # tamanho do retorno de sha1
   k = (n.bit_length() + 7) // 8 # número de bytes de n (módulo)
   mlen = len(message) # tamanho da mensagem em bytes
-
-  if mlen > k - 2 * hLen - 2:
-    raise ValueError("Messagem muito longa para ser codificada")
-
   ps = b'\x00' * (k - mlen - 2 * hLen - 2)
   db = lhash + ps + b'\x01' + message # tamanho k - hLen - 1
   seed = secrets.token_bytes(hLen)
@@ -151,13 +147,19 @@ def rsa(input: str, key: Key) -> str:
   outputbytes = int_output.to_bytes(k, 'big')
   return b64encode(outputbytes).decode('utf-8')
 
-def cipher(plaintext : str, key: Key) -> str:
-  encoded = encode_oaep(plaintext, key.n)
-  return rsa(encoded, key)
+def cipher(plaintext : str, key: Key) -> bytes:
+  res = ''
+  for i in range(0, len(plaintext), 215):
+    encoded = encode_oaep(plaintext[i:i+215], key.n)
+    res += rsa(encoded, key)
+  return res
 
 def decipher(ciphertext: str, key: Key) -> str:
-  decode = rsa(ciphertext, key)
-  return decode_oaep(decode, key.n)
+  res = ''
+  for i in range(0, len(ciphertext), 344):
+    decode = rsa(ciphertext[i:i+344], key)
+    res += decode_oaep(decode, key.n)
+  return res
 
 def sign(plaintext : str, key: Key) -> str:
   hash = sha3_256(plaintext.encode('utf-8')).digest()
@@ -167,8 +169,6 @@ def verify(ciphertext : str, key: Key, signature: str) -> bool:
   msg = decipher(ciphertext, key)
   msghash = sha3_256(msg.encode('utf-8')).digest()
   signaturebytes = b64decode(rsa(signature, key))[-32:] # 32 é o tamanho em bytes do hash sha3_256
-  print(f'hash: {msghash}')
-  print(f'signature: {signaturebytes}')
   return signaturebytes == msghash
 
 #######################
@@ -195,9 +195,8 @@ def input_check_signature(keys_pair: TKeysDict):
   ciphertext = input('Texto cifrado: ')
   signature = input('Assinatura: ')
   verified = verify(ciphertext, keys_pair['private'], signature)
-  print(f'Verificação: {verified}')
+  print('Assinatura válida' if verified else 'Assinatura inválida')
   return
-
 
 def main():
   user_pref = input('Deseja gerar novas chaves e usá-las nas operações seguintes? (s/n) ')
