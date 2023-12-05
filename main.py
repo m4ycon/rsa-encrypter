@@ -112,13 +112,14 @@ def mgf1(seed : bytes, mask_len : int, hash_function=sha1):
     return masks[:mask_len]
 
 def encode_oaep(plaintext: str, n : int, hash_function=sha1) -> str:
-  message = plaintext.encode()
+  message = plaintext.encode('utf-8')
   lhash = hash_function(b'').digest() # bytes da label ""
   hLen = hash_function().digest_size # tamanho do retorno de sha1
   k = (n.bit_length() + 7) // 8 # número de bytes de n (módulo)
   mlen = len(message) # tamanho da mensagem em bytes
   ps = b'\x00' * (k - mlen - 2 * hLen - 2)
   db = lhash + ps + b'\x01' + message # tamanho k - hLen - 1
+  print(len(db))
   seed = secrets.token_bytes(hLen)
   dbMask = mgf1(seed, k - hLen - 1)
   maskedDB = xor(db, dbMask)
@@ -135,7 +136,7 @@ def decode_oaep(ciphertext : str, n : int, hash_function=sha1) -> str :
   seedMask = mgf1(maskedDB, hLen)
   seed = xor(maskedSeed, seedMask)
   dbMask = mgf1(seed, k - hLen - 1)
-  db =xor(maskedDB, dbMask)
+  db = xor(maskedDB, dbMask)
   decoded = db.split(b'\x01', 1)[1]
   return decoded.decode('utf-8')
 
@@ -149,15 +150,17 @@ def rsa(input: str, key: Key) -> str:
 
 def cipher(plaintext : str, key: Key) -> bytes:
   res = ''
-  for i in range(0, len(plaintext), 215):
-    encoded = encode_oaep(plaintext[i:i+215], key.n)
+  plaintextbytes = plaintext.encode('utf-8')
+  for i in range(0, len(plaintextbytes), 215):
+    encoded = encode_oaep(plaintextbytes[i:i+215].decode('utf-8'), key.n)
     res += rsa(encoded, key)
   return res
 
 def decipher(ciphertext: str, key: Key) -> str:
   res = ''
-  for i in range(0, len(ciphertext), 344):
-    decode = rsa(ciphertext[i:i+344], key)
+  ciphertextbytes = ciphertext.encode('utf-8')
+  for i in range(0, len(ciphertextbytes), 344):
+    decode = rsa(ciphertextbytes[i:i+344].decode('utf-8'), key)
     res += decode_oaep(decode, key.n)
   return res
 
@@ -249,3 +252,5 @@ def main():
     switcher[usr_input](keys_pair)
 
 main()
+
+# I just returned from the greatest summer vacation! It was so fantastic, I never wanted it to end. I spent eight days in Paris, France. My best friends, Henry and Steve, went with me. We had a beautiful hotel room in the Latin Quarter, and it wasn’t even expensive. We had a balcony with a wonderful view. We visited many famous tourist places. My favorite was the Louvre, a well-known museum. I was always interested in art, so that was a special treat for me. The museum is so huge, you could spend weeks there. Henry got tired walking around the museum and said “Enough! I need to take a break and rest.” We took lots of breaks and sat in cafes along the river Seine. The French food we ate was delicious. The wines were tasty, too. Steve’s favorite part of the vacation was the hotel breakfast. He said he would be happy if he could eat croissants like those forever. We had so much fun that we’re already talking about our next vacation!
