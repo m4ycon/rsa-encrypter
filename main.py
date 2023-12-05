@@ -112,14 +112,13 @@ def mgf1(seed : bytes, mask_len : int, hash_function=sha1):
     return masks[:mask_len]
 
 def encode_oaep(plaintext: str, n : int, hash_function=sha1) -> str:
-  message = plaintext.encode('utf-8')
+  message = plaintext.encode('utf-8') # tamanho máximo k - 2 * hlen - 2
   lhash = hash_function(b'').digest() # bytes da label ""
   hLen = hash_function().digest_size # tamanho do retorno de sha1
   k = (n.bit_length() + 7) // 8 # número de bytes de n (módulo)
   mlen = len(message) # tamanho da mensagem em bytes
   ps = b'\x00' * (k - mlen - 2 * hLen - 2)
   db = lhash + ps + b'\x01' + message # tamanho k - hLen - 1
-  print(len(db))
   seed = secrets.token_bytes(hLen)
   dbMask = mgf1(seed, k - hLen - 1)
   maskedDB = xor(db, dbMask)
@@ -151,7 +150,7 @@ def rsa(input: str, key: Key) -> str:
 def cipher(plaintext : str, key: Key) -> bytes:
   res = ''
   plaintextbytes = plaintext.encode('utf-8')
-  for i in range(0, len(plaintextbytes), 215):
+  for i in range(0, len(plaintextbytes), 215): # tamanho máximo da mensagem
     encoded = encode_oaep(plaintextbytes[i:i+215].decode('utf-8'), key.n)
     res += rsa(encoded, key)
   return res
@@ -159,7 +158,7 @@ def cipher(plaintext : str, key: Key) -> bytes:
 def decipher(ciphertext: str, key: Key) -> str:
   res = ''
   ciphertextbytes = ciphertext.encode('utf-8')
-  for i in range(0, len(ciphertextbytes), 344):
+  for i in range(0, len(ciphertextbytes), 344): # tamanho imutável da mensagem codificada
     decode = rsa(ciphertextbytes[i:i+344].decode('utf-8'), key)
     res += decode_oaep(decode, key.n)
   return res
@@ -168,11 +167,10 @@ def sign(plaintext : str, key: Key) -> str:
   hash = sha3_256(plaintext.encode('utf-8')).digest()
   return rsa(b64encode(hash).decode('utf-8'), key)
 
-def verify(ciphertext : str, key: Key, signature: str) -> bool:
-  msg = decipher(ciphertext, key)
-  msghash = sha3_256(msg.encode('utf-8')).digest()
+def verify(plaintext : str, key: Key, signature: str) -> bool:
+  hash = sha3_256(plaintext.encode('utf-8')).digest()
   signaturebytes = b64decode(rsa(signature, key))[-32:] # 32 é o tamanho em bytes do hash sha3_256
-  return signaturebytes == msghash
+  return signaturebytes == hash
 
 #######################
 
@@ -190,14 +188,14 @@ def input_decrypt(keys_pair: TKeysDict):
 
 def input_signature(keys_pair: TKeysDict):
   plaintext = input('Mensagem: ')
-  signature = sign(plaintext, keys_pair['public'])
+  signature = sign(plaintext, keys_pair['private'])
   print(f'Assinatura: {signature}')
   return
 
 def input_check_signature(keys_pair: TKeysDict):
-  ciphertext = input('Texto cifrado: ')
+  msg = input('Mensagem: ')
   signature = input('Assinatura: ')
-  verified = verify(ciphertext, keys_pair['private'], signature)
+  verified = verify(msg, keys_pair['public'], signature)
   print('Assinatura válida' if verified else 'Assinatura inválida')
   return
 
@@ -252,5 +250,3 @@ def main():
     switcher[usr_input](keys_pair)
 
 main()
-
-# I just returned from the greatest summer vacation! It was so fantastic, I never wanted it to end. I spent eight days in Paris, France. My best friends, Henry and Steve, went with me. We had a beautiful hotel room in the Latin Quarter, and it wasn’t even expensive. We had a balcony with a wonderful view. We visited many famous tourist places. My favorite was the Louvre, a well-known museum. I was always interested in art, so that was a special treat for me. The museum is so huge, you could spend weeks there. Henry got tired walking around the museum and said “Enough! I need to take a break and rest.” We took lots of breaks and sat in cafes along the river Seine. The French food we ate was delicious. The wines were tasty, too. Steve’s favorite part of the vacation was the hotel breakfast. He said he would be happy if he could eat croissants like those forever. We had so much fun that we’re already talking about our next vacation!
