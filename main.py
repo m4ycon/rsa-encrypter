@@ -13,11 +13,16 @@ class Key():
     self.k = key
     self.n = n
 
+  def read_key(self, key: str):
+    k, n = key.strip().split('.')
+    self.k = int(k, 16)
+    self.n = int(n, 16)
+
   def __str__(self):
     k_hex = hex(self.k)[2:]
     n_hex = hex(self.n)[2:]
 
-    return f'({k_hex}, {n_hex})'
+    return f'{k_hex}.{n_hex}'
 
 
 TKeysDict = Dict[str, Key]
@@ -107,12 +112,13 @@ def mgf1(seed : bytes, mask_len : int, hash_function=sha1):
     return masks[:mask_len]
 
 def encode_oaep(plaintext: str, n : int, hash_function=sha1) -> str:
+  message = plaintext.encode()
   lhash = hash_function(b'').digest() # bytes da label ""
   hLen = hash_function().digest_size # tamanho do retorno de sha1
   k = (n.bit_length() + 7) // 8 # número de bytes de n (módulo)
-  mlen = len(plaintext) # tamanho da mensagem em bytes
+  mlen = len(message) # tamanho da mensagem em bytes
   ps = b'\x00' * (k - mlen - 2 * hLen - 2)
-  db = lhash + ps + b'\x01' + plaintext.encode('utf-8') # tamanho k - hLen - 1
+  db = lhash + ps + b'\x01' + message # tamanho k - hLen - 1
   seed = secrets.token_bytes(hLen)
   dbMask = mgf1(seed, k - hLen - 1)
   maskedDB = xor(db, dbMask)
@@ -131,7 +137,7 @@ def decode_oaep(ciphertext : str, n : int, hash_function=sha1) -> str :
   dbMask = mgf1(seed, k - hLen - 1)
   db =xor(maskedDB, dbMask)
   decoded = db.split(b'\x01', 1)[1]
-  return decoded.decode('utf8')
+  return decoded.decode('utf-8')
 
 def rsa(input: str, key: Key) -> str:
   inputbytes = b64decode(input)
@@ -141,13 +147,19 @@ def rsa(input: str, key: Key) -> str:
   outputbytes = int_output.to_bytes(k, 'big')
   return b64encode(outputbytes).decode('utf-8')
 
-def cipher(plaintext : str, key: Key) -> str:
-  encoded = encode_oaep(plaintext, key.n)
-  return rsa(encoded, key)
+def cipher(plaintext : str, key: Key) -> bytes:
+  res = ''
+  for i in range(0, len(plaintext), 215):
+    encoded = encode_oaep(plaintext[i:i+215], key.n)
+    res += rsa(encoded, key)
+  return res
 
 def decipher(ciphertext: str, key: Key) -> str:
-  decode = rsa(ciphertext, key)
-  return decode_oaep(decode, key.n)
+  res = ''
+  for i in range(0, len(ciphertext), 344):
+    decode = rsa(ciphertext[i:i+344], key)
+    res += decode_oaep(decode, key.n)
+  return res
 
 def sign(plaintext : str, key: Key) -> str:
   hash = sha3_256(plaintext.encode('utf-8')).digest()
@@ -157,8 +169,6 @@ def verify(ciphertext : str, key: Key, signature: str) -> bool:
   msg = decipher(ciphertext, key)
   msghash = sha3_256(msg.encode('utf-8')).digest()
   signaturebytes = b64decode(rsa(signature, key))[-32:] # 32 é o tamanho em bytes do hash sha3_256
-  print(f'hash: {msghash}')
-  print(f'signature: {signaturebytes}')
   return signaturebytes == msghash
 
 #######################
@@ -185,14 +195,25 @@ def input_check_signature(keys_pair: TKeysDict):
   ciphertext = input('Texto cifrado: ')
   signature = input('Assinatura: ')
   verified = verify(ciphertext, keys_pair['private'], signature)
-  print(f'Verificação: {verified}')
+  print('Assinatura válida' if verified else 'Assinatura inválida')
   return
 
-
 def main():
-  keys_pair = generate_keys()
-  print(f'Chave pública gerada: {keys_pair["public"]}')
-  print(f'Chave privada gerada: {keys_pair["private"]}')
+  user_pref = input('Deseja gerar novas chaves e usá-las nas operações seguintes? (s/n) ')
+  
+  keys_pair = { 'public': Key(0, 0), 'private': Key(0, 0) }
+  if user_pref.lower() == 's':
+    keys_pair = generate_keys()
+    print(f'Chave pública gerada: {keys_pair["public"]}')
+    print(f'Chave privada gerada: {keys_pair["private"]}')
+  else:
+    public_key = input('Chave pública (e.n em hexadecimal): ')
+    private_key = input('Chave privada (d.n em hexadecimal): ')
+    keys_pair['public'].read_key(public_key)
+    keys_pair['private'].read_key(private_key)
+    print(f'Chave pública gerada: {keys_pair["public"]}')
+    print(f'Chave privada gerada: {keys_pair["private"]}')
+
 
   options = [
     'Criptografar',
